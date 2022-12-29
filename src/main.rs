@@ -1,10 +1,12 @@
+mod quantity_parser;
+
 use std::{net::SocketAddr, path::PathBuf};
 
-use anyhow::Result;
 use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use clap_verbosity_flag::InfoLevel;
+use color_eyre::Result;
 use kube::{
     core::{
         admission::{AdmissionRequest, AdmissionResponse, AdmissionReview},
@@ -32,7 +34,9 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let cli = Cli::parse();
 
     tracing_subscriber::fmt()
@@ -61,7 +65,6 @@ async fn main() {
 
     if let Some(config) = config {
         tracing::debug!("tls listening on {}", &cli.addr);
-
         axum_server::bind_rustls(cli.addr, config)
             .serve(app.into_make_service())
             .await
@@ -72,7 +75,9 @@ async fn main() {
             .serve(app.into_make_service())
             .await
             .unwrap();
-    }
+    };
+
+    Ok(())
 }
 
 // A general /mutate handler, handling errors from the underlying business logic
@@ -99,7 +104,7 @@ async fn mutate_handler(Json(body): Json<AdmissionReview<DynamicObject>>) -> imp
         res = match mutate(res.clone(), &obj) {
             Ok(res) => {
                 // TODO: Remove those verbose logs
-                info!("accepted: {:?} on Foo {}", req.operation, name);
+                info!("accepted: {:?} on pod {}", req.operation, name);
 
                 res
             }
@@ -116,6 +121,9 @@ async fn mutate_handler(Json(body): Json<AdmissionReview<DynamicObject>>) -> imp
 
 // The main handler and core business logic, failures here implies rejected applies
 fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionResponse> {
+    let mut egress_limit: Option<f64> = None;
+    let mut ingress_limit: Option<f64> = None;
+
     if let Some(containers) = obj.data.get("spec").and_then(|spec| {
         spec.get("containers")
             .and_then(|containers| containers.as_array())
@@ -124,34 +132,74 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
             let Some(resources) = container.get("resources") else { continue };
             let Some(limits) = resources.get("limits") else { continue; };
 
-            // TODO: Add logic adding up all the ingress-bandwidth and egress-bandwidth
+            if let Some(egress_bandwidth) = limits.get("networking.k8s.io/egress-bandwidth") {
+                if let Some(egress_bandwidth) = egress_bandwidth.as_str() {
+                    if let Ok(quantity) = quantity_parser::parse(egress_bandwidth) {
+                        if egress_limit.is_none() {
+                            egress_limit = Some(0.0);
+                        }
+
+                        if let Some(egress_limit) = egress_limit.as_mut() {
+                            *egress_limit += quantity;
+                        }
+                    }
+                }
+            }
+
+            if let Some(ingress_bandwidth) = limits.get("networking.k8s.io/ingress-bandwidth") {
+                if let Some(ingress_bandwidth) = ingress_bandwidth.as_str() {
+                    if let Ok(quantity) = quantity_parser::parse(ingress_bandwidth) {
+                        if ingress_limit.is_none() {
+                            ingress_limit = Some(0.0);
+                        }
+
+                        if let Some(ingress_limit) = ingress_limit.as_mut() {
+                            *ingress_limit += quantity;
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // TODO: Add annotations to pod if limits exist
+    let mut patches = Vec::new();
 
-	// TODO: Remove this once the above are completed
     // If the resource doesn't contain "admission", we add it to the resource.
-    if !obj.labels().contains_key("admission") {
-        let mut patches = Vec::new();
-
-        // Ensure labels exist before adding a key to it
-        if obj.meta().labels.is_none() {
+    if !obj.annotations().contains_key("nba-admission") {
+        // Ensure annotations exist before adding a key to it
+        if obj.meta().annotations.is_none() {
             patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
-                path: "/metadata/labels".into(),
+                path: "/metadata/annotations".into(),
                 value: serde_json::json!({}),
             }));
         }
-        // Add our label
-        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
-            path: "/metadata/labels/admission".into(),
-            value: serde_json::Value::String("modified-by-admission-controller".into()),
-        }));
 
-        Ok(res.with_patch(json_patch::Patch(patches))?)
-    } else {
-        Ok(res)
+        // Add our annotation
+        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
+            path: "/metadata/annotations/nba-admission".into(),
+            value: serde_json::Value::String("true".into()),
+        }));
+    };
+
+    // Add annotations to pod if limits exist
+    if let Some(egress_limit) = egress_limit {
+        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
+            path: "/metadata/annotations/kubernetes.io~1egress-bandwidth".into(),
+            value: serde_json::Value::String(egress_limit.to_string()),
+        }));
     }
+    if let Some(ingress_limit) = ingress_limit {
+        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
+            path: "/metadata/annotations/kubernetes.io~1ingress-bandwidth".into(),
+            value: serde_json::Value::String(ingress_limit.to_string()),
+        }));
+    }
+
+    Ok(if !patches.is_empty() {
+        res.with_patch(json_patch::Patch(patches))?
+    } else {
+        res
+    })
 }
 
 fn convert_filter(filter: log::LevelFilter) -> tracing_subscriber::filter::LevelFilter {

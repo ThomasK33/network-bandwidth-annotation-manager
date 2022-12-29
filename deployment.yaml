@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nba
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: network-bandwidth-annotator
+  namespace: nba
+spec:
+  dnsNames:
+    - network-bandwidth-annotator.nba.svc
+    - network-bandwidth-annotator.nba.svc.cluster.local
+  duration: 2160h
+  isCA: false
+  issuerRef:
+    kind: ClusterIssuer
+    name: selfsigned-issuer
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  renewBefore: 360h
+  secretName: tls-network-bandwidth-annotator
+  subject:
+    organizations:
+      - Thomas Kosiewski
+  usages:
+    - server auth
+    - client auth
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-bandwidth-annotator
+  namespace: nba
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: network-bandwidth-annotator
+  template:
+    metadata:
+      labels:
+        app: network-bandwidth-annotator
+    spec:
+      containers:
+        - command:
+            - ./network-bandwidth-annotator
+            - -v
+          env:
+            - name: ADDR
+              value: 0.0.0.0:8443
+            - name: TLS_CERT_FILE
+              value: /certs/tls.crt
+            - name: TLS_KEY_FILE
+              value: /certs/tls.key
+          image: k3d-default-registry.localhost:9090/networkbandwidthannotator:0.1.0
+          imagePullPolicy: Always
+          name: network-bandwidth-annotator
+          ports:
+            - containerPort: 8443
+              name: https
+          volumeMounts:
+            - mountPath: /certs
+              name: tls-certs
+              readOnly: true
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: tls-network-bandwidth-annotator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: network-bandwidth-annotator
+  namespace: nba
+spec:
+  ports:
+    - name: https
+      port: 8443
+  selector:
+    app: network-bandwidth-annotator
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nba/network-bandwidth-annotator
+  name: network-bandwidth-annotator
+  namespace: nba
+webhooks:
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotator
+        namespace: nba
+        path: /mutate
+        port: 8443
+    failurePolicy: Ignore
+    name: network-bandwidth-annotator.nba.svc
+    namespaceSelector:
+      matchLabels:
+        nba-enabled: "true"
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5

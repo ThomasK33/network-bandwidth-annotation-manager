@@ -27,10 +27,10 @@ struct Cli {
     addr: SocketAddr,
     /// Path to PEM encoded TLS cert file
     #[clap(long, env)]
-    tls_cert_file: Option<PathBuf>,
+    tls_cert: Option<PathBuf>,
     /// Path to PEM encoded TLS private key file
     #[clap(long, env)]
-    tls_key_file: Option<PathBuf>,
+    tls_key: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -45,8 +45,8 @@ async fn main() -> Result<()> {
 
     let app = Router::new().route("/mutate", post(mutate_handler));
 
-    let config: Option<RustlsConfig> = if let Some(tls_cert_file) = cli.tls_cert_file {
-        if let Some(tls_key_file) = cli.tls_key_file {
+    let config: Option<RustlsConfig> = if let Some(tls_cert_file) = cli.tls_cert {
+        if let Some(tls_key_file) = cli.tls_key {
             // TODO: Implement certificate rotation logic
             match RustlsConfig::from_pem_file(tls_cert_file, tls_key_file).await {
                 Ok(config) => Some(config),
@@ -159,6 +159,9 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                     }
                 }
             }
+
+            // TODO: Get requests and collect a baseline for both ingress and egress
+            // bandwidth and add it as annotations to the pod
         }
     }
 

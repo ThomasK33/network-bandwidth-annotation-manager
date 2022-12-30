@@ -945,7 +945,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "network-bandwidth-annotator"
+name = "network-bandwidth-annotation-manager"
 version = "0.1.0"
 dependencies = [
  "axum",

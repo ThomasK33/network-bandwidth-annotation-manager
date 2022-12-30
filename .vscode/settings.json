@@ -1,6 +1,12 @@
 {
 	"cSpell.words": [
+		"admissionregistration",
 		"apiserver",
+		"nbam",
+		"PKCS",
 		"rustls"
-	]
+	],
+	"markdownlint.config": {
+		"MD033": false
+	}
 }

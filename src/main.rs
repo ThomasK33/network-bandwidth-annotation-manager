@@ -31,6 +31,13 @@ struct Cli {
     /// Path to PEM encoded TLS private key file
     #[clap(long, env)]
     tls_key: Option<PathBuf>,
+
+    /// Egress bandwidth resource key name
+    #[clap(long, env, default_value_t = { "networking.k8s.io/egress-bandwidth".to_owned() })]
+    egress_bandwidth_resource_key: String,
+    /// Ingress bandwidth resource key name
+    #[clap(long, env, default_value_t = { "networking.k8s.io/ingress-bandwidth".to_owned() })]
+    ingress_bandwidth_resource_key: String,
 }
 
 #[tokio::main]
@@ -43,7 +50,18 @@ async fn main() -> Result<()> {
         .with_max_level(convert_filter(cli.verbose.log_level_filter()))
         .init();
 
-    let app = Router::new().route("/mutate", post(mutate_handler));
+    let app = Router::new().route(
+        "/mutate",
+        post({
+            move |body| {
+                mutate_handler(
+                    body,
+                    cli.egress_bandwidth_resource_key,
+                    cli.ingress_bandwidth_resource_key,
+                )
+            }
+        }),
+    );
 
     let config: Option<RustlsConfig> = if let Some(tls_cert_file) = cli.tls_cert {
         if let Some(tls_key_file) = cli.tls_key {
@@ -81,7 +99,11 @@ async fn main() -> Result<()> {
 }
 
 // A general /mutate handler, handling errors from the underlying business logic
-async fn mutate_handler(Json(body): Json<AdmissionReview<DynamicObject>>) -> impl IntoResponse {
+async fn mutate_handler(
+    Json(body): Json<AdmissionReview<DynamicObject>>,
+    egress_bandwidth_resource_key: String,
+    ingress_bandwidth_resource_key: String,
+) -> impl IntoResponse {
     // Parse incoming webhook AdmissionRequest first
     let req: AdmissionRequest<_> = match body.try_into() {
         Ok(req) => req,
@@ -101,7 +123,12 @@ async fn mutate_handler(Json(body): Json<AdmissionReview<DynamicObject>>) -> imp
     if let Some(obj) = req.object {
         let name = obj.name_any(); // apiserver may not have generated a name yet
 
-        res = match mutate(res.clone(), &obj) {
+        res = match mutate(
+            res.clone(),
+            &obj,
+            &egress_bandwidth_resource_key,
+            &ingress_bandwidth_resource_key,
+        ) {
             Ok(res) => {
                 // TODO: Remove those verbose logs
                 info!("accepted: {:?} on pod {}", req.operation, name);
@@ -120,7 +147,12 @@ async fn mutate_handler(Json(body): Json<AdmissionReview<DynamicObject>>) -> imp
 }
 
 // The main handler and core business logic, failures here implies rejected applies
-fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionResponse> {
+fn mutate(
+    res: AdmissionResponse,
+    obj: &DynamicObject,
+    egress_bandwidth_resource_key: &str,
+    ingress_bandwidth_resource_key: &str,
+) -> Result<AdmissionResponse> {
     let mut egress_limit: Option<f64> = None;
     let mut ingress_limit: Option<f64> = None;
 
@@ -132,7 +164,7 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
             let Some(resources) = container.get("resources") else { continue };
             let Some(limits) = resources.get("limits") else { continue; };
 
-            if let Some(egress_bandwidth) = limits.get("networking.k8s.io/egress-bandwidth") {
+            if let Some(egress_bandwidth) = limits.get(egress_bandwidth_resource_key) {
                 if let Some(egress_bandwidth) = egress_bandwidth.as_str() {
                     if let Ok(quantity) = quantity_parser::parse(egress_bandwidth) {
                         if egress_limit.is_none() {
@@ -146,7 +178,7 @@ fn mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionRespon
                 }
             }
 
-            if let Some(ingress_bandwidth) = limits.get("networking.k8s.io/ingress-bandwidth") {
+            if let Some(ingress_bandwidth) = limits.get(ingress_bandwidth_resource_key) {
                 if let Some(ingress_bandwidth) = ingress_bandwidth.as_str() {
                     if let Ok(quantity) = quantity_parser::parse(ingress_bandwidth) {
                         if ingress_limit.is_none() {

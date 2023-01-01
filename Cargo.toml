@@ -5,6 +5,8 @@ edition = "2021"
 authors = ["Thomas Kosiewski <thoma471@googlemail.com>"]
 description = "A dynamic admission controller setting a Kubernetes pod's network bandwidth annotations using its limits"
 
+license = "MIT"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

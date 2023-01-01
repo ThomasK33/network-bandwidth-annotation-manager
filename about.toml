@@ -1,0 +1,17 @@
+accepted = ["Apache-2.0", "MIT"]
+ignore-build-dependencies = false
+ignore-dev-dependencies = false
+ignore-transitive-dependencies = false
+workarounds = ["ring"]
+
+[ring]
+accepted = ["ISC", "OpenSSL"]
+
+[untrusted]
+accepted = ["ISC"]
+
+[webpki]
+accepted = ["ISC", "BSD-3-Clause", "NOASSERTION"]
+
+[unicode-ident]
+accepted = ["Unicode-DFS-2016"]

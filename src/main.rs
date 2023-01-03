@@ -7,6 +7,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use clap_verbosity_flag::InfoLevel;
 use color_eyre::Result;
+use json_patch::{AddOperation, CopyOperation, PatchOperation, RemoveOperation};
 use kube::{
     core::{
         admission::{AdmissionRequest, AdmissionResponse, AdmissionReview},
@@ -40,6 +41,12 @@ struct Cli {
     ingress_bandwidth_resource_key: String,
 }
 
+enum Mode {
+    Annotate,
+    Strip,
+    Overwrite,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
@@ -50,18 +57,55 @@ async fn main() -> Result<()> {
         .with_max_level(convert_filter(cli.verbose.log_level_filter()))
         .init();
 
-    let app = Router::new().route(
-        "/mutate",
-        post({
-            move |body| {
-                mutate_handler(
-                    body,
-                    cli.egress_bandwidth_resource_key,
-                    cli.ingress_bandwidth_resource_key,
-                )
-            }
-        }),
-    );
+    let app = Router::new()
+        .route(
+            "/mutate",
+            post({
+                let egress_bandwidth_resource_key = cli.egress_bandwidth_resource_key.clone();
+                let ingress_bandwidth_resource_key = cli.ingress_bandwidth_resource_key.clone();
+
+                move |body| {
+                    mutate_handler(
+                        body,
+                        egress_bandwidth_resource_key,
+                        ingress_bandwidth_resource_key,
+                        Mode::Annotate,
+                    )
+                }
+            }),
+        )
+        .route(
+            "/strip",
+            post({
+                let egress_bandwidth_resource_key = cli.egress_bandwidth_resource_key.clone();
+                let ingress_bandwidth_resource_key = cli.ingress_bandwidth_resource_key.clone();
+
+                move |body| {
+                    mutate_handler(
+                        body,
+                        egress_bandwidth_resource_key,
+                        ingress_bandwidth_resource_key,
+                        Mode::Strip,
+                    )
+                }
+            }),
+        )
+        .route(
+            "/override",
+            post({
+                let egress_bandwidth_resource_key = cli.egress_bandwidth_resource_key.clone();
+                let ingress_bandwidth_resource_key = cli.ingress_bandwidth_resource_key.clone();
+
+                move |body| {
+                    mutate_handler(
+                        body,
+                        egress_bandwidth_resource_key,
+                        ingress_bandwidth_resource_key,
+                        Mode::Overwrite,
+                    )
+                }
+            }),
+        );
 
     let config: Option<RustlsConfig> = if let Some(tls_cert_file) = cli.tls_cert {
         if let Some(tls_key_file) = cli.tls_key {
@@ -103,6 +147,7 @@ async fn mutate_handler(
     Json(body): Json<AdmissionReview<DynamicObject>>,
     egress_bandwidth_resource_key: String,
     ingress_bandwidth_resource_key: String,
+    mode: Mode,
 ) -> impl IntoResponse {
     // Parse incoming webhook AdmissionRequest first
     let req: AdmissionRequest<_> = match body.try_into() {
@@ -128,6 +173,7 @@ async fn mutate_handler(
             &obj,
             &egress_bandwidth_resource_key,
             &ingress_bandwidth_resource_key,
+            mode,
         ) {
             Ok(res) => {
                 // TODO: Remove those verbose logs
@@ -152,7 +198,29 @@ fn mutate(
     obj: &DynamicObject,
     egress_bandwidth_resource_key: &str,
     ingress_bandwidth_resource_key: &str,
+    mode: Mode,
 ) -> Result<AdmissionResponse> {
+    let mut patches = Vec::new();
+
+    // If the resource doesn't contain "admission", we add it to the resource.
+    if !obj.annotations().contains_key("nba-admission") {
+        // Ensure annotations exist before adding a key to it
+        if obj.meta().annotations.is_none() {
+            patches.push(PatchOperation::Add(AddOperation {
+                path: "/metadata/annotations".into(),
+                value: serde_json::json!({}),
+            }));
+        }
+
+        // Add our annotation
+        patches.push(PatchOperation::Add(AddOperation {
+            path: "/metadata/annotations/nba-admission".into(),
+            value: serde_json::Value::String("true".into()),
+        }));
+    };
+
+    let mut egress_request: Option<f64> = None;
+    let mut ingress_request: Option<f64> = None;
     let mut egress_limit: Option<f64> = None;
     let mut ingress_limit: Option<f64> = None;
 
@@ -160,71 +228,188 @@ fn mutate(
         spec.get("containers")
             .and_then(|containers| containers.as_array())
     }) {
-        for container in containers {
+        for (index, container) in containers.iter().enumerate() {
             let Some(resources) = container.get("resources") else { continue };
-            let Some(limits) = resources.get("limits") else { continue; };
 
-            if let Some(egress_bandwidth) = limits.get(egress_bandwidth_resource_key) {
-                if let Some(egress_bandwidth) = egress_bandwidth.as_str() {
-                    if let Ok(quantity) = quantity_parser::parse(egress_bandwidth) {
-                        if egress_limit.is_none() {
-                            egress_limit = Some(0.0);
-                        }
+            // -- Get egress and ingress requests --
+            let requests = resources.get("requests").map(|requests| {
+                (
+                    requests
+                        .get(egress_bandwidth_resource_key)
+                        .and_then(|bandwidth| bandwidth.as_str())
+                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                    requests
+                        .get(ingress_bandwidth_resource_key)
+                        .and_then(|bandwidth| bandwidth.as_str())
+                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                )
+            });
 
-                        if let Some(egress_limit) = egress_limit.as_mut() {
-                            *egress_limit += quantity;
-                        }
+            if let Some((egress, ingress)) = &requests {
+                if let Some(Ok(egress)) = egress {
+                    if egress_request.is_none() {
+                        egress_request = Some(0.0);
+                    }
+
+                    if let Some(egress_request) = egress_request.as_mut() {
+                        *egress_request += egress;
+                    }
+                }
+
+                if let Some(Ok(ingress)) = ingress {
+                    if ingress_request.is_none() {
+                        ingress_request = Some(0.0);
+                    }
+
+                    if let Some(ingress_request) = ingress_request.as_mut() {
+                        *ingress_request += ingress;
                     }
                 }
             }
 
-            if let Some(ingress_bandwidth) = limits.get(ingress_bandwidth_resource_key) {
-                if let Some(ingress_bandwidth) = ingress_bandwidth.as_str() {
-                    if let Ok(quantity) = quantity_parser::parse(ingress_bandwidth) {
-                        if ingress_limit.is_none() {
-                            ingress_limit = Some(0.0);
-                        }
+            // -- Get egress and ingress limits --
+            let limits = resources.get("limits").map(|limits| {
+                (
+                    limits
+                        .get(egress_bandwidth_resource_key)
+                        .and_then(|bandwidth| bandwidth.as_str())
+                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                    limits
+                        .get(ingress_bandwidth_resource_key)
+                        .and_then(|bandwidth| bandwidth.as_str())
+                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                )
+            });
 
-                        if let Some(ingress_limit) = ingress_limit.as_mut() {
-                            *ingress_limit += quantity;
-                        }
+            if let Some((egress, ingress)) = &limits {
+                if let Some(Ok(egress)) = egress {
+                    if egress_limit.is_none() {
+                        egress_limit = Some(0.0);
+                    }
+
+                    if let Some(egress_limit) = egress_limit.as_mut() {
+                        *egress_limit += egress;
+                    }
+                }
+
+                if let Some(Ok(ingress)) = ingress {
+                    if ingress_limit.is_none() {
+                        ingress_limit = Some(0.0);
+                    }
+
+                    if let Some(ingress_limit) = ingress_limit.as_mut() {
+                        *ingress_limit += ingress;
                     }
                 }
             }
 
-            // TODO: Get requests and collect a baseline for both ingress and egress
-            // bandwidth and add it as annotations to the pod
+            // -- Mutation modes --
+            match mode {
+                Mode::Annotate => {
+                    // In annotate mode, no further operations have to be performed on the Kubernetes object
+                    // thus it's a noop
+                }
+                // Strip custom bandwidth resource requests and limits if strip = true
+                Mode::Strip => {
+                    if let Some((egress, ingress)) = requests {
+                        if let Some(Ok(_)) = egress {
+                            patches.push(PatchOperation::Remove(RemoveOperation {
+                                path: format!(
+                                    "/spec/containers/{index}/resources/requests/{}",
+                                    escape_json_pointer(egress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+
+                        if let Some(Ok(_)) = ingress {
+                            patches.push(PatchOperation::Remove(RemoveOperation {
+                                path: format!(
+                                    "/spec/containers/{index}/resources/requests/{}",
+                                    escape_json_pointer(ingress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+                    }
+
+                    if let Some((egress, ingress)) = limits {
+                        if let Some(Ok(_)) = egress {
+                            patches.push(PatchOperation::Remove(RemoveOperation {
+                                path: format!(
+                                    "/spec/containers/{index}/resources/limits/{}",
+                                    escape_json_pointer(egress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+
+                        if let Some(Ok(_)) = ingress {
+                            patches.push(PatchOperation::Remove(RemoveOperation {
+                                path: format!(
+                                    "/spec/containers/{index}/resources/limits/{}",
+                                    escape_json_pointer(ingress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+                    }
+                }
+                Mode::Overwrite => {
+                    // Check if current container has both, requests and limits set
+                    if let (Some(limits), Some(requests)) = (limits, requests) {
+                        // Check if current container has egress bandwidth defined in both requests and limits set
+                        if let (Some(Ok(_)), Some(Ok(_))) = (limits.0, requests.0) {
+                            patches.push(PatchOperation::Copy(CopyOperation {
+                                from: format!(
+                                    "/spec/containers/{index}/resources/requests/{}",
+                                    escape_json_pointer(egress_bandwidth_resource_key)
+                                ),
+                                path: format!(
+                                    "/spec/containers/{index}/resources/limits/{}",
+                                    escape_json_pointer(egress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+
+                        // Check if current container has ingress bandwidth defined in both requests and limits set
+                        if let (Some(Ok(_)), Some(Ok(_))) = (limits.1, requests.1) {
+                            patches.push(PatchOperation::Copy(CopyOperation {
+                                from: format!(
+                                    "/spec/containers/{index}/resources/requests/{}",
+                                    escape_json_pointer(ingress_bandwidth_resource_key)
+                                ),
+                                path: format!(
+                                    "/spec/containers/{index}/resources/limits/{}",
+                                    escape_json_pointer(ingress_bandwidth_resource_key)
+                                ),
+                            }));
+                        }
+                    }
+                }
+            };
         }
     }
 
-    let mut patches = Vec::new();
-
-    // If the resource doesn't contain "admission", we add it to the resource.
-    if !obj.annotations().contains_key("nba-admission") {
-        // Ensure annotations exist before adding a key to it
-        if obj.meta().annotations.is_none() {
-            patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
-                path: "/metadata/annotations".into(),
-                value: serde_json::json!({}),
-            }));
-        }
-
-        // Add our annotation
-        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
-            path: "/metadata/annotations/nba-admission".into(),
-            value: serde_json::Value::String("true".into()),
+    // Add request annotations for use-cases with dedicated schedulers
+    if let Some(egress_request) = egress_request {
+        patches.push(PatchOperation::Add(AddOperation {
+            path: "/metadata/annotations/kubernetes.io~1egress-request".into(),
+            value: serde_json::Value::String(egress_request.to_string()),
         }));
-    };
+    }
+    if let Some(ingress_request) = ingress_request {
+        patches.push(PatchOperation::Add(AddOperation {
+            path: "/metadata/annotations/kubernetes.io~1ingress-request".into(),
+            value: serde_json::Value::String(ingress_request.to_string()),
+        }));
+    }
 
     // Add annotations to pod if limits exist
     if let Some(egress_limit) = egress_limit {
-        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
+        patches.push(PatchOperation::Add(AddOperation {
             path: "/metadata/annotations/kubernetes.io~1egress-bandwidth".into(),
             value: serde_json::Value::String(egress_limit.to_string()),
         }));
     }
     if let Some(ingress_limit) = ingress_limit {
-        patches.push(json_patch::PatchOperation::Add(json_patch::AddOperation {
+        patches.push(PatchOperation::Add(AddOperation {
             path: "/metadata/annotations/kubernetes.io~1ingress-bandwidth".into(),
             value: serde_json::Value::String(ingress_limit.to_string()),
         }));
@@ -235,6 +420,10 @@ fn mutate(
     } else {
         res
     })
+}
+
+fn escape_json_pointer(key: &str) -> String {
+    key.replace("~", "~0").replace("/", "~1")
 }
 
 fn convert_filter(filter: log::LevelFilter) -> tracing_subscriber::filter::LevelFilter {

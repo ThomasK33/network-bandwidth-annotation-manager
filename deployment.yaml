@@ -63,7 +63,7 @@ spec:
               value: /certs/tls.crt
             - name: TLS_KEY
               value: /certs/tls.key
-          image: k3d-default-registry.localhost:9090/nbam:0.1.0
+          image: k3d-default-registry.localhost:9090/nbam:latest
           imagePullPolicy: Always
           name: network-bandwidth-annotation-manager
           ports:
@@ -108,10 +108,10 @@ webhooks:
         path: /mutate
         port: 8443
     failurePolicy: Ignore
-    name: network-bandwidth-annotation-manager.nbam.svc
+    name: nbam-ns-annotate.nbam.svc
     namespaceSelector:
       matchLabels:
-        nbam-enabled: "true"
+        nbam-mode: "annotate"
     rules:
       - apiGroups:
           - ""
@@ -135,10 +135,10 @@ webhooks:
         path: /mutate
         port: 8443
     failurePolicy: Ignore
-    name: network-bandwidth-annotation-manager.nbam.svc
+    name: nbam-object-annotate.nbam.svc
     objectSelector:
       matchLabels:
-        nbam-enabled: "true"
+        nbam-mode: "annotate"
     rules:
       - apiGroups:
           - ""
@@ -152,3 +152,112 @@ webhooks:
         scope: Namespaced
     sideEffects: None
     timeoutSeconds: 5
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotation-manager
+        namespace: nbam
+        path: /strip
+        port: 8443
+    failurePolicy: Ignore
+    name: nbam-ns-strip.nbam.svc
+    namespaceSelector:
+      matchLabels:
+        nbam-mode: "strip"
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotation-manager
+        namespace: nbam
+        path: /strip
+        port: 8443
+    failurePolicy: Ignore
+    name: nbam-object-strip.nbam.svc
+    objectSelector:
+      matchLabels:
+        nbam-mode: "strip"
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotation-manager
+        namespace: nbam
+        path: /overwrite
+        port: 8443
+    failurePolicy: Ignore
+    name: nbam-ns-overwrite.nbam.svc
+    namespaceSelector:
+      matchLabels:
+        nbam-mode: "overwrite"
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotation-manager
+        namespace: nbam
+        path: /overwrite
+        port: 8443
+    failurePolicy: Ignore
+    name: nbam-object-overwrite.nbam.svc
+    objectSelector:
+      matchLabels:
+        nbam-mode: "overwrite"
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5
+  # TODO: Add scheduler field override paths

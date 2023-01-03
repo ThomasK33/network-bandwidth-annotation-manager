@@ -30,12 +30,12 @@ pub fn parse(quantity: &str) -> Result<f64> {
     let regex = Regex::new(r"([[:alpha:]]{1,2}$)")?;
 
     let Some(suffix) = regex.captures(quantity) else {
-		return Ok(quantity.parse()?);
-	};
+        return Ok(quantity.parse()?);
+    };
 
     let Some(suffix) = suffix.get(0) else {
-		return Err(color_eyre::eyre::eyre!("Could not determine quantity suffix"));
-	};
+        return Err(color_eyre::eyre::eyre!("Could not determine quantity suffix"));
+    };
 
     let multiplier: f64 = match suffix.as_str() {
         "Ki" => 1024.0,

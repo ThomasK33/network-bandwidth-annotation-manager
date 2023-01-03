@@ -2,8 +2,11 @@
 	"cSpell.words": [
 		"admissionregistration",
 		"apiserver",
+		"Mbit",
 		"nbam",
+		"overcommit",
 		"PKCS",
+		"powi",
 		"rustls"
 	],
 	"markdownlint.config": {

@@ -73,6 +73,16 @@ spec:
             - mountPath: /certs
               name: tls-certs
               readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 12345
+            runAsGroup: 12345
+            seccompProfile:
+              type: RuntimeDefault
       volumes:
         - name: tls-certs
           secret:

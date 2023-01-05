@@ -1,20 +1,35 @@
 mod quantity_parser;
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
-use axum::{http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
 use axum_server::tls_rustls::RustlsConfig;
 use clap::Parser;
 use clap_verbosity_flag::InfoLevel;
 use color_eyre::Result;
+use futures::TryStreamExt;
 use json_patch::{AddOperation, CopyOperation, PatchOperation, RemoveOperation};
+use k8s_openapi::api::core::v1::Namespace;
 use kube::{
+    api::ListParams,
     core::{
         admission::{AdmissionRequest, AdmissionResponse, AdmissionReview},
-        DynamicObject,
+        DynamicObject, ObjectMeta,
     },
-    Resource, ResourceExt,
+    runtime::{watcher, WatchStreamExt},
+    Api, Client, Resource, ResourceExt,
 };
+use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 #[derive(Debug, Parser)]
@@ -56,6 +71,42 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(convert_filter(cli.verbose.log_level_filter()))
         .init();
+
+    // TODO: Add Kubernetes client fetching and caching all namespaces into a Arc
+    // Mutex HashMap. This is necessary so that later in the scheduler override the
+    // scheduler name can be derived from the label on the namespace
+    let namespaces: Arc<Mutex<HashMap<String, ObjectMeta>>> = Arc::new(Mutex::new(HashMap::new()));
+
+    // FIXME: Do not drop watcher error silently, instead start a new watcher task
+    let _: JoinHandle<Result<()>> = tokio::spawn({
+        let namespaces = namespaces.clone();
+
+        async move {
+            let client = Client::try_default().await?;
+
+            watcher(Api::<Namespace>::all(client), ListParams::default())
+                .applied_objects()
+                .try_for_each(|namespace| {
+                    let namespaces = namespaces.clone();
+
+                    async move {
+                        tracing::info!("namespace: {namespace:?}");
+
+                        let name = namespace.name_any();
+                        let meta = namespace.meta();
+
+                        if let Ok(mut namespaces) = namespaces.lock() {
+                            namespaces.insert(name, meta.clone());
+                        }
+
+                        Ok(())
+                    }
+                })
+                .await?;
+
+            Ok(())
+        }
+    });
 
     let app = Router::new()
         .route(
@@ -104,6 +155,14 @@ async fn main() -> Result<()> {
                         Mode::Overwrite,
                     )
                 }
+            }),
+        )
+        .route(
+            "/namespaces",
+            get({
+                tracing::debug!("namespaces: {:?}", namespaces);
+
+                || async move { StatusCode::OK }
             }),
         );
 
@@ -237,11 +296,11 @@ fn mutate(
                     requests
                         .get(egress_bandwidth_resource_key)
                         .and_then(|bandwidth| bandwidth.as_str())
-                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                        .map(quantity_parser::parse),
                     requests
                         .get(ingress_bandwidth_resource_key)
                         .and_then(|bandwidth| bandwidth.as_str())
-                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                        .map(quantity_parser::parse),
                 )
             });
 
@@ -273,11 +332,11 @@ fn mutate(
                     limits
                         .get(egress_bandwidth_resource_key)
                         .and_then(|bandwidth| bandwidth.as_str())
-                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                        .map(quantity_parser::parse),
                     limits
                         .get(ingress_bandwidth_resource_key)
                         .and_then(|bandwidth| bandwidth.as_str())
-                        .map(|bandwidth| quantity_parser::parse(bandwidth)),
+                        .map(quantity_parser::parse),
                 )
             });
 
@@ -422,8 +481,29 @@ fn mutate(
     })
 }
 
+fn scheduler_mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<AdmissionResponse> {
+    let mut patches = Vec::new();
+
+    // Check if the pod has a scheduler label
+    if let Some(default_scheduler) = obj.labels().get("nbam-default-scheduler") {
+        patches.push(PatchOperation::Add(AddOperation {
+            path: "/spec/schedulerName".into(),
+            value: serde_json::Value::String(default_scheduler.to_owned()),
+        }));
+    } else {
+        // Otherwise this function was called by a namespace with a label set thus we
+        // need to fetch the namespace details and get the label from there
+    }
+
+    Ok(if !patches.is_empty() {
+        res.with_patch(json_patch::Patch(patches))?
+    } else {
+        res
+    })
+}
+
 fn escape_json_pointer(key: &str) -> String {
-    key.replace("~", "~0").replace("/", "~1")
+    key.replace('~', "~0").replace('/', "~1")
 }
 
 fn convert_filter(filter: log::LevelFilter) -> tracing_subscriber::filter::LevelFilter {

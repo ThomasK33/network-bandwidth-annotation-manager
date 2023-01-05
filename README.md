@@ -248,6 +248,52 @@ spec:
 
 By enabling the default scheduler override on either a namespace level or pod level, by adding `nbam-default-scheduler: "[SCHEDULER_NAME]"` , NBAM will override the default scheduler to the one defined in the label.
 
+<details>
+<summary>Example Namespace</summary>
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nbam-test
+  labels:
+    nbam-default-scheduler: my-scheduler
+```
+
+</details>
+
+<details>
+<summary>Before mutation</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-scheduler-overwrite
+spec:
+  containers:
+  - name: pod-with-second-annotation-container
+    image: registry.k8s.io/pause:2.0
+```
+
+</details>
+
+<details>
+<summary>After mutation</summary>
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-scheduler-overwrite
+spec:
+  schedulerName: my-scheduler
+  containers:
+  - name: pod-with-second-annotation-container
+    image: registry.k8s.io/pause:2.0
+```
+
+</details>
 TODO: Add examples
 
 ## Build

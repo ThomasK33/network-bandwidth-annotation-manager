@@ -338,6 +338,18 @@ By running the following, one will create a local environment consisting of a [k
 just run
 ```
 
+To add networking-related node capacities and allocatable amounts, open a new shell instance, leaving the previous one open, and run the following:
+
+```bash
+just annotate-nodes
+```
+
+One can then inspect all resources and allocations using, e.g., [kubectl-view-allocations](https://github.com/davidB/kubectl-view-allocations).
+
+```bash
+kubectl view-allocations
+```
+
 To apply all examples listed above, one should use the following:
 
 ```bash

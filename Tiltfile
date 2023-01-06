@@ -5,7 +5,7 @@ deploy_cert_manager()
 
 # --- network-bandwidth-annotation-manager ---
 docker_build(
-	"nbam",
+	"thomask33/nbam",
 	".",
 	only=["Cargo.toml", "Cargo.lock", "Dockerfile", "./src/"]
 )

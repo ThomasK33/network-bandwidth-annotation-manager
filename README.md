@@ -223,8 +223,8 @@ metadata:
   name: my-pod
   namespace: nbam-test
   annotations:
-    kubernetes.io/ingress-bandwidth: 4M
-    kubernetes.io/egress-bandwidth: 4M
+    kubernetes.io/ingress-bandwidth: 2M
+    kubernetes.io/egress-bandwidth: 2M
     kubernetes.io/ingress-request: 1M
     kubernetes.io/egress-request: 1M
 spec:

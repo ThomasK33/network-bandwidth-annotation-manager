@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
             }),
         )
         .route(
-            "/override",
+            "/overwrite",
             post({
                 let egress_bandwidth_resource_key = cli.egress_bandwidth_resource_key.clone();
                 let ingress_bandwidth_resource_key = cli.ingress_bandwidth_resource_key.clone();

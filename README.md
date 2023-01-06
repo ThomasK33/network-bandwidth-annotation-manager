@@ -246,7 +246,7 @@ spec:
 
 ### (WIP) Scheduler Override
 
-By enabling the default scheduler override on either a namespace level or pod level, by adding `nbam-default-scheduler: "[SCHEDULER_NAME]"` , NBAM will override the default scheduler to the one defined in the label.
+By enabling the default scheduler override on either a namespace level or pod level, by adding `nbam-default-scheduler: "[SCHEDULER_NAME]"`, NBAM will override the default scheduler to the one defined in the label.
 
 <details>
 <summary>Example Namespace</summary>
@@ -326,6 +326,31 @@ network-bandwidth-annotation-manager --listen 0.0.0.0:8443 --tls-cert ./cert.pem
 
 The following example of a Kubernetes deployment assumes one installed cert-manager and its webhook correctly.
 
-One can find an example deployment at `./deployment.yaml`.
+One can find an example deployment at [`deployments/manager.yaml`](deployments/manager.yaml).
+
+## Example
+
+A prerequisite for setting up a local development environment is installing [k3d], [tilt], and [just] locally.
+
+By running the following, one will create a local environment consisting of a [k3d] managed registry, [k3d] multi-node cluster, and [tilt]:
+
+```bash
+just run
+```
+
+To apply all examples listed above, one should use the following:
+
+```bash
+just apply-examples
+```
+
+To stop the local development environment, one should run the following:
+
+```bash
+just stop
+```
 
 [extended resources]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#extended-resources
+[k3d]: https://k3d.io/v5.4.6/
+[tilt]: https://tilt.dev/
+[just]: https://github.com/casey/just

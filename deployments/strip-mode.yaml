@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nbam-strip
+  labels:
+    nbam-mode: "strip"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+  namespace: nbam-strip
+spec:
+  containers:
+    - name: my-container
+      image: nginx:1.23
+      resources:
+        requests:
+          cpu: 2
+          networking.k8s.io/ingress-bandwidth: 1M
+          networking.k8s.io/egress-bandwidth: 1M
+        limits:
+          cpu: 4
+          # Limits the ingress bandwidth to 2Mbit/s
+          networking.k8s.io/ingress-bandwidth: 2M
+          # Limits the egress bandwidth to 2Mbit/s
+          networking.k8s.io/egress-bandwidth: 2M

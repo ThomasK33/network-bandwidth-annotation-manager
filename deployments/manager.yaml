@@ -63,7 +63,8 @@ spec:
               value: /certs/tls.crt
             - name: TLS_KEY
               value: /certs/tls.key
-          image: k3d-default-registry.localhost:9090/nbam:latest
+          # image: k3d-default-registry.localhost:9090/nbam:latest
+          image: nbam:latest
           imagePullPolicy: Always
           name: network-bandwidth-annotation-manager
           ports:

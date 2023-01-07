@@ -10,6 +10,9 @@ accepted = ["ISC", "OpenSSL"]
 [untrusted]
 accepted = ["ISC"]
 
+[instant]
+accepted = ["BSD-3-Clause"]
+
 [webpki]
 accepted = ["ISC", "BSD-3-Clause", "NOASSERTION"]
 

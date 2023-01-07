@@ -1,0 +1,25 @@
+name: docs
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --locked cargo-about
+      - run: cargo about generate about.hbs > docs/license.md
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+      - run: pip install mkdocs-material
+      - run: pip install mkdocs-roamlinks-plugin
+      - run: mkdocs gh-deploy --force

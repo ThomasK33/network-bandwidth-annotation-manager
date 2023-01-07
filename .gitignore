@@ -75,3 +75,4 @@ target/
 # Added by cargo
 
 /target
+docs/license.md

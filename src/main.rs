@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 mod quantity_parser;
+mod utilrs;
 
 use std::{
     collections::HashMap,
@@ -32,6 +33,7 @@ use kube::{
 };
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
+use utilrs::{convert_filter, escape_json_pointer};
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -185,6 +187,8 @@ async fn main() -> Result<()> {
         None
     };
 
+    // TODO: Handle graceful shutdown
+
     if let Some(config) = config {
         tracing::debug!("tls listening on {}", &cli.addr);
         axum_server::bind_rustls(cli.addr, config)
@@ -193,7 +197,7 @@ async fn main() -> Result<()> {
             .unwrap();
     } else {
         tracing::debug!("listening on {}", &cli.addr);
-        axum::Server::bind(&cli.addr)
+        axum_server::bind(cli.addr)
             .serve(app.into_make_service())
             .await
             .unwrap();
@@ -503,17 +507,4 @@ fn scheduler_mutate(res: AdmissionResponse, obj: &DynamicObject) -> Result<Admis
     })
 }
 
-fn escape_json_pointer(key: &str) -> String {
-    key.replace('~', "~0").replace('/', "~1")
-}
-
-fn convert_filter(filter: log::LevelFilter) -> tracing_subscriber::filter::LevelFilter {
-    match filter {
-        log::LevelFilter::Off => tracing_subscriber::filter::LevelFilter::OFF,
-        log::LevelFilter::Error => tracing_subscriber::filter::LevelFilter::ERROR,
-        log::LevelFilter::Warn => tracing_subscriber::filter::LevelFilter::WARN,
-        log::LevelFilter::Info => tracing_subscriber::filter::LevelFilter::INFO,
-        log::LevelFilter::Debug => tracing_subscriber::filter::LevelFilter::DEBUG,
-        log::LevelFilter::Trace => tracing_subscriber::filter::LevelFilter::TRACE,
-    }
-}
+// TODO: Add unit tests

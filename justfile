@@ -6,6 +6,11 @@ run: setup-k3d setup-tilt
 # Stop local development environment
 stop: teardown-tilt teardown-k3d
 
+# Run mkdocs locally
+docs:
+	cargo about generate about.hbs > docs/license.md
+	mkdocs serve
+
 # --- tilt ---
 
 # Start tilt
@@ -36,7 +41,7 @@ annotate-nodes:
 	kubectl proxy &
 	K_PID=$!
 
-	while ! nc -z localhost 8001; do   
+	while ! nc -z localhost 8001; do
 		sleep 0.1 # wait for 1/10 of the second before check again
 	done
 
@@ -105,24 +110,12 @@ annotate-nodes:
 # --- Examples ---
 
 # Apply all examples
-apply-examples: apply-annotation-example apply-strip-example apply-overwrite-example
-# Delete all examples
-delete-examples: delete-annotation-example delete-strip-example delete-overwrite-example
-
-apply-annotation-example:
+apply-examples:
 	kubectl apply -f examples/annotator-mode.yaml
-
-apply-strip-example:
 	kubectl apply -f examples/strip-mode.yaml
-
-apply-overwrite-example:
 	kubectl apply -f examples/overwrite-mode.yaml
-
-delete-annotation-example:
+# Delete all examples
+delete-examples:
 	kubectl delete -f examples/annotator-mode.yaml
-
-delete-strip-example:
 	kubectl delete -f examples/strip-mode.yaml
-
-delete-overwrite-example:
 	kubectl delete -f examples/overwrite-mode.yaml

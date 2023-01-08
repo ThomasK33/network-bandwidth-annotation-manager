@@ -12,289 +12,7 @@ By adding specific labels to namespaces, NBAM mutates pod definitions accordingl
 These mutations occur before the object's persistence by the apiserver.
 Thus, the kube-scheduler and CNI can use the object without further changes.
 
-### Annotator Mode
-
-By enabling bandwidth annotations on either a namespace level, by adding a `nbam-mode: "annotate"` label to the namespace, or the pod level, by adding the `nbam-mode: "annotate"` to the pod's annotations, NBAM will combine the network limits from each container and add the result to the corresponding annotations for CNIs to use.
-
-<details>
-<summary>Example Namespace</summary>
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nbam-test
-  labels:
-    nbam-mode: "annotate"
-```
-
-</details>
-
-<details>
- <summary>Before mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-      limits:
-        cpu: 4
-        # Limits the ingress bandwidth to 1Mbit/s
-        networking.k8s.io/ingress-bandwidth: 1M
-        # Limits the egress bandwidth to 1Mbit/s
-        networking.k8s.io/egress-bandwidth: 1M
-```
-
-</details>
-
-<details>
-<summary>After mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-  annotations:
-    # These annotations are used by CNIs for traffic shaping
-    kubernetes.io/ingress-bandwidth: 1M
-    kubernetes.io/egress-bandwidth: 1M
-    # These additional annotations are set by the mutating webhook for
-    # use with custom schedulers
-    kubernetes.io/ingress-request: 1M
-    kubernetes.io/egress-request: 1M
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-      limits:
-        cpu: 4
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-```
-
-</details>
-
-### Strip Mode
-
-By enabling the extended resources stripper feature on a namespace level, by adding `nbam-mode: "strip"` label to the namespace, or on a pod level, by adding the `nbam-mode: "strip"` to the pod's annotations, NBAM will perform the same operations as in the annotator flag feature while additionally stripping the extended sources from the object.
-
-<details>
-<summary>Example Namespace</summary>
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nbam-test
-  labels:
-    nbam-mode: "strip"
-```
-
-</details>
-
-<details>
- <summary>Before mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-      limits:
-        cpu: 4
-        # Limits the ingress bandwidth to 2Mbit/s
-        networking.k8s.io/ingress-bandwidth: 2M
-        # Limits the egress bandwidth to 2Mbit/s
-        networking.k8s.io/egress-bandwidth: 2M
-```
-
-</details>
-
-<details>
-<summary>After mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-  annotations:
-    kubernetes.io/ingress-bandwidth: 2M
-    kubernetes.io/egress-bandwidth: 2M
-    kubernetes.io/ingress-request: 1M
-    kubernetes.io/egress-request: 1M
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-      limits:
-        cpu: 4
-```
-
-</details>
-
-### Overwrite Mode
-
-By enabling the extended resources overwrite feature on a namespace level, by adding `nbam-mode: "overwrite"` label to the namespace, or on a pod level, by adding the `nbam-mode: "overwrite"` to the pod's annotations, NBAM will perform the same operations as in the annotator flag feature while overriding each pod's networking limits with its networking requests.
-
-This mode is useful for scheduling with extended resources yet still being able to overcommit and set higher limits on the CNI.
-
-<details>
-<summary>Example Namespace</summary>
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nbam-test
-  labels:
-    nbam-mode: "overwrite"
-```
-
-</details>
-
-<details>
- <summary>Before mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-      limits:
-        cpu: 4
-        # Limits the ingress bandwidth to 2Mbit/s
-        networking.k8s.io/ingress-bandwidth: 2M
-        # Limits the egress bandwidth to 2Mbit/s
-        networking.k8s.io/egress-bandwidth: 2M
-```
-
-</details>
-
-<details>
-<summary>After mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-pod
-  namespace: nbam-test
-  annotations:
-    kubernetes.io/ingress-bandwidth: 2M
-    kubernetes.io/egress-bandwidth: 2M
-    kubernetes.io/ingress-request: 1M
-    kubernetes.io/egress-request: 1M
-spec:
-  containers:
-  - name: my-container
-    image: nginx:1.23
-    resources:
-      requests:
-        cpu: 2
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-      limits:
-        cpu: 4
-        networking.k8s.io/ingress-bandwidth: 1M
-        networking.k8s.io/egress-bandwidth: 1M
-```
-
-</details>
-
-### (WIP) Scheduler Override
-
-By enabling the default scheduler override on either a namespace level or pod level, by adding `nbam-default-scheduler: "[SCHEDULER_NAME]"`, NBAM will override the default scheduler to the one defined in the label.
-
-<details>
-<summary>Example Namespace</summary>
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nbam-test
-  labels:
-    nbam-default-scheduler: my-scheduler
-```
-
-</details>
-
-<details>
-<summary>Before mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: default-scheduler-overwrite
-spec:
-  containers:
-  - name: pod-with-second-annotation-container
-    image: registry.k8s.io/pause:2.0
-```
-
-</details>
-
-<details>
-<summary>After mutation</summary>
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: default-scheduler-overwrite
-spec:
-  schedulerName: my-scheduler
-  containers:
-  - name: pod-with-second-annotation-container
-    image: registry.k8s.io/pause:2.0
-```
-
-</details>
-TODO: Add examples
+One can find a feature overview in the [project documentation's feature section].
 
 ## Build
 
@@ -344,7 +62,7 @@ To add networking-related node capacities and allocatable amounts, open a new sh
 just annotate-nodes
 ```
 
-One can then inspect all resources and allocations using, e.g., [kubectl-view-allocations](https://github.com/davidB/kubectl-view-allocations).
+One can then inspect all resources and allocations using, e.g., [kubectl-view-allocations].
 
 ```bash
 kubectl view-allocations
@@ -362,7 +80,19 @@ To stop the local development environment, one should run the following:
 just stop
 ```
 
+## Contributing
+
+### Documentation
+
+To generate the license file, followed by `mkdocs serve`, one can run the following:
+
+```bash
+just docs
+```
+
 [extended resources]: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#extended-resources
 [k3d]: https://k3d.io/v5.4.6/
 [tilt]: https://tilt.dev/
 [just]: https://github.com/casey/just
+[project documentation's feature section]: https://thomask33.github.io/network-bandwidth-annotation-manager/features/annotator-mode/
+[kubectl-view-allocations]: (https://github.com/davidB/kubectl-view-allocations)

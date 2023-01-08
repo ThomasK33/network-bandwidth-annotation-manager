@@ -11,6 +11,7 @@ theme:
     - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
+    - navigation.footer
 
     - search.suggest
     - search.highlight
@@ -33,6 +34,7 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
 
+repo_name: NBAM
 repo_url: https://github.com/ThomasK33/network-bandwidth-annotation-manager
 edit_uri: edit/main/docs/
 

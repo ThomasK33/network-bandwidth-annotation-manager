@@ -32,7 +32,7 @@ spec:
   secretName: tls-network-bandwidth-annotation-manager
   subject:
     organizations:
-      - Thomas Kosiewski
+      - NBAM
   usages:
     - server auth
     - client auth
@@ -63,7 +63,7 @@ spec:
               value: /certs/tls.crt
             - name: TLS_KEY
               value: /certs/tls.key
-          image: thomask33/nbam:latest
+          image: ghcr.io/thomask33/nbam:latest
           imagePullPolicy: Always
           name: network-bandwidth-annotation-manager
           ports:

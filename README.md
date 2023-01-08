@@ -1,18 +1,18 @@
 # Network Bandwidth Annotation Manager
 
-The network bandwidth annotation manager is a dynamic admission controller for Kubernetes setting a pod's network bandwidth annotations using its limits, stripping [extended resources], and optionally changing a pod's scheduler.
+The network bandwidth annotation manager is a dynamic admission controller for Kubernetes setting a pod's network bandwidth annotations using its resource requests, stripping [extended resources], and optionally changing a pod's scheduler.
 
-The primary motivation behind creating nbam is the ability to use extended resource FQDNs in pod resource requests, as many helm charts or other packaged Kubernetes deployments do not allow setting custom pod annotations, as required by the CNI spec.
+The primary motivation behind creating NBAM is the ability to use [extended resources|extended resource] FQDNs in pod resource requests and limits, as many helm charts or other packaged Kubernetes deployments do not allow setting custom pod annotations, as required by the CNI spec.
 Yet, one can usually set CPU and memory limits in helm charts or Kubernetes primitives. Thus nbam takes care of rewriting those to the corresponding pod annotations in multiple modes.
 
 ## Features
 
-By adding specific labels to namespaces, NBAM mutates pod definitions accordingly to the features enabled.
+By adding specific labels to namespaces or pods, NBAM mutates pod definitions accordingly to the selected mutation mode.
 
 These mutations occur before the object's persistence by the apiserver.
 Thus, the kube-scheduler and CNI can use the object without further changes.
 
-One can find a feature overview in the [project documentation's feature section].
+One can find a mutation mode and feature overview in the [project documentation's feature section].
 
 ## Build
 
@@ -32,6 +32,10 @@ One can create the OCI image using the following:
 docker build -t nbam:latest "."
 ```
 
+### Pre-built OCI images
+
+TODO: Add Github Action to build images and push to ghcr.io
+
 ## Usage
 
 ### CLI usage
@@ -42,7 +46,7 @@ network-bandwidth-annotation-manager --listen 0.0.0.0:8443 --tls-cert ./cert.pem
 
 ### Kubernetes Deployment
 
-The following example of a Kubernetes deployment assumes one installed cert-manager and its webhook correctly.
+The following example of a Kubernetes deployment assumes one installed [cert-manager] and its webhook correctly.
 
 One can find an example deployment at [`deployments/manager.yaml`](deployments/manager.yaml).
 
@@ -50,7 +54,7 @@ One can find an example deployment at [`deployments/manager.yaml`](deployments/m
 
 A prerequisite for setting up a local development environment is installing [k3d], [tilt], and [just] locally.
 
-By running the following, one will create a local environment consisting of a [k3d] managed registry, [k3d] multi-node cluster, and [tilt]:
+By running the following, one will create a local environment consisting of a [customized k3d-managed registry], [k3d multi-server cluster], and [tilt]:
 
 ```bash
 just run
@@ -96,3 +100,6 @@ just docs
 [just]: https://github.com/casey/just
 [project documentation's feature section]: https://thomask33.github.io/network-bandwidth-annotation-manager/features/annotator-mode/
 [kubectl-view-allocations]: (https://github.com/davidB/kubectl-view-allocations)
+[customized k3d-managed registry]: https://k3d.io/v5.2.1/usage/registries/#create-a-customized-k3d-managed-registry
+[k3d multi-server cluster]: https://k3d.io/v5.2.1/usage/multiserver/
+[cert-manager]: https://cert-manager.io/

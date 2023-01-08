@@ -13,7 +13,7 @@ metadata:
 spec:
   containers:
     - name: my-container
-      image: nginx:1.23
+      image: registry.k8s.io/pause:2.0
       resources:
         requests:
           cpu: 2
@@ -25,3 +25,13 @@ spec:
           networking.k8s.io/ingress-bandwidth: 2M
           # Limits the egress bandwidth to 2Mbit/s
           networking.k8s.io/egress-bandwidth: 2M
+      # securityContext:
+      #   allowPrivilegeEscalation: false
+      #   capabilities:
+      #     drop: ["ALL"]
+      #   readOnlyRootFilesystem: true
+      #   runAsNonRoot: true
+      #   runAsUser: 12345
+      #   runAsGroup: 12345
+      #   seccompProfile:
+      #     type: RuntimeDefault

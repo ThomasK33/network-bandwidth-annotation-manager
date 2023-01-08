@@ -114,8 +114,10 @@ apply-examples:
 	kubectl apply -f examples/annotator-mode.yaml
 	kubectl apply -f examples/strip-mode.yaml
 	kubectl apply -f examples/overwrite-mode.yaml
+	kubectl apply -f examples/scheduler-override.yaml
 # Delete all examples
 delete-examples:
 	kubectl delete -f examples/annotator-mode.yaml
 	kubectl delete -f examples/strip-mode.yaml
 	kubectl delete -f examples/overwrite-mode.yaml
+	kubectl delete -f examples/scheduler-override.yaml

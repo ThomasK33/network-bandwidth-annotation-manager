@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nbam-scheduler-override
+  labels:
+    nbam-default-scheduler: my-scheduler
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: default-scheduler-overwrite
+  namespace: nbam-scheduler-override
+spec:
+  containers:
+    - name: pod-with-second-annotation-container
+      image: registry.k8s.io/pause:2.0

@@ -1,11 +1,17 @@
 apiVersion: v1
 kind: Namespace
 metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: nbam
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: self-signed-issuer
 spec:
   selfSigned: {}
@@ -13,6 +19,9 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: network-bandwidth-annotation-manager
   namespace: nbam
 spec:
@@ -37,20 +46,68 @@ spec:
     - server auth
     - client auth
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
+  name: network-bandwidth-annotation-manager-service-account
+  namespace: nbam
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
+  name: network-bandwidth-annotation-manager-cluster-role
+  namespace: nbam
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
+  name: network-bandwidth-annotation-manager
+  namespace: nbam
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: network-bandwidth-annotation-manager-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: network-bandwidth-annotation-manager-service-account
+    namespace: nbam
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: network-bandwidth-annotation-manager
   namespace: nbam
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: network-bandwidth-annotation-manager
+      app.kubernetes.io/name: network-bandwidth-annotation-manager
   template:
     metadata:
       labels:
-        app: network-bandwidth-annotation-manager
+        app.kubernetes.io/name: network-bandwidth-annotation-manager
+        app.kubernetes.io/version: 0.1.0
     spec:
       containers:
         - command:
@@ -63,26 +120,27 @@ spec:
               value: /certs/tls.crt
             - name: TLS_KEY
               value: /certs/tls.key
-          image: ghcr.io/thomask33/nbam:latest
-          imagePullPolicy: Always
+          image: ghcr.io/thomask33/nbam:0.1.0
           name: network-bandwidth-annotation-manager
           ports:
             - containerPort: 8443
               name: https
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 12345
+            runAsNonRoot: true
+            runAsUser: 12345
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - mountPath: /certs
               name: tls-certs
               readOnly: true
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 12345
-            runAsGroup: 12345
-            seccompProfile:
-              type: RuntimeDefault
+      serviceAccountName: network-bandwidth-annotation-manager-service-account
       volumes:
         - name: tls-certs
           secret:
@@ -91,6 +149,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: network-bandwidth-annotation-manager
   namespace: nbam
 spec:
@@ -98,13 +159,16 @@ spec:
     - name: https
       port: 8443
   selector:
-    app: network-bandwidth-annotation-manager
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: nbam/network-bandwidth-annotation-manager
+  labels:
+    app.kubernetes.io/name: network-bandwidth-annotation-manager
+    app.kubernetes.io/version: 0.1.0
   name: network-bandwidth-annotation-manager
   namespace: nbam
 webhooks:
@@ -115,13 +179,13 @@ webhooks:
       service:
         name: network-bandwidth-annotation-manager
         namespace: nbam
-        path: /mutate
+        path: /annotate
         port: 8443
     failurePolicy: Ignore
     name: nbam-ns-annotate.nbam.svc
     namespaceSelector:
       matchLabels:
-        nbam-mode: "annotate"
+        nbam-mode: annotate
     rules:
       - apiGroups:
           - ""
@@ -142,13 +206,13 @@ webhooks:
       service:
         name: network-bandwidth-annotation-manager
         namespace: nbam
-        path: /mutate
+        path: /annotate
         port: 8443
     failurePolicy: Ignore
     name: nbam-object-annotate.nbam.svc
     objectSelector:
       matchLabels:
-        nbam-mode: "annotate"
+        nbam-mode: annotate
     rules:
       - apiGroups:
           - ""
@@ -175,7 +239,7 @@ webhooks:
     name: nbam-ns-strip.nbam.svc
     namespaceSelector:
       matchLabels:
-        nbam-mode: "strip"
+        nbam-mode: strip
     rules:
       - apiGroups:
           - ""
@@ -202,7 +266,7 @@ webhooks:
     name: nbam-object-strip.nbam.svc
     objectSelector:
       matchLabels:
-        nbam-mode: "strip"
+        nbam-mode: strip
     rules:
       - apiGroups:
           - ""
@@ -229,7 +293,7 @@ webhooks:
     name: nbam-ns-overwrite.nbam.svc
     namespaceSelector:
       matchLabels:
-        nbam-mode: "overwrite"
+        nbam-mode: overwrite
     rules:
       - apiGroups:
           - ""
@@ -256,7 +320,7 @@ webhooks:
     name: nbam-object-overwrite.nbam.svc
     objectSelector:
       matchLabels:
-        nbam-mode: "overwrite"
+        nbam-mode: overwrite
     rules:
       - apiGroups:
           - ""
@@ -270,5 +334,31 @@ webhooks:
         scope: Namespaced
     sideEffects: None
     timeoutSeconds: 5
-  # TODO: Add scheduler field override paths
-# TODO: Add service account and rbac rules for namespace watching
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: network-bandwidth-annotation-manager
+        namespace: nbam
+        path: /namespace
+        port: 8443
+    failurePolicy: Ignore
+    name: nbam-ns-scheduler-override.nbam.svc
+    namespaceSelector:
+      matchExpressions:
+        - key: nbam-default-scheduler
+          operator: Exists
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 5

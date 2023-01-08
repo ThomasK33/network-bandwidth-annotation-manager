@@ -7,12 +7,12 @@ name: trivy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
-    - cron: '32 1 * * 6'
+    - cron: "32 1 * * 6"
 
 permissions:
   contents: read
@@ -31,18 +31,17 @@ jobs:
 
       - name: Build an image from Dockerfile
         run: |
-          docker build -t docker.io/thomask33/nbam:${{ github.sha }} .
+          docker build -t ghcr.io/thomask33/nbam:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'docker.io/thomask33/nbam:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          image-ref: "ghcr.io/thomask33/nbam:${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"

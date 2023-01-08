@@ -26,7 +26,7 @@ use regex::Regex;
 ///
 /// <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber>
 /// ```
-pub fn parse(quantity: &str) -> Result<f64> {
+pub(crate) fn parse(quantity: &str) -> Result<f64> {
     let regex = Regex::new(r"([[:alpha:]]{1,2}$)")?;
 
     let Some(suffix) = regex.captures(quantity) else {
@@ -62,4 +62,45 @@ pub fn parse(quantity: &str) -> Result<f64> {
     let quantity = quantity.parse::<f64>()?;
 
     Ok(quantity * multiplier)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_0_75k() {
+        let quantity = "0.75k";
+
+        let result = parse(quantity);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 750.0);
+    }
+
+    #[test]
+    fn test_parse_1m() {
+        let quantity = "1M";
+
+        let result = parse(quantity);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1000000.0);
+    }
+
+    #[test]
+    fn test_parse_1_25g() {
+        let quantity = "1.25G";
+
+        let result = parse(quantity);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1250000000.0);
+    }
+
+    #[test]
+    fn test_parse_550_mi() {
+        let quantity = "550Mi";
+
+        let result = parse(quantity);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 576716800.0);
+    }
 }

@@ -1,0 +1,4 @@
+# The Dockerfile uses a multi-stage build
+# Trivy detects a false positive here as only the build stage has the root user
+# in use, thus we can ignore this rule
+AVD-DS-0002

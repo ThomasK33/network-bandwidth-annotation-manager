@@ -8,7 +8,8 @@
 		"overcommit",
 		"PKCS",
 		"powi",
-		"rustls"
+		"rustls",
+		"Trivy"
 	],
 	"markdownlint.config": {
 		"MD033": false

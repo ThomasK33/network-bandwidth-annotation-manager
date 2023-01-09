@@ -112,7 +112,6 @@ spec:
       containers:
         - command:
             - ./network-bandwidth-annotation-manager
-            - -v
           env:
             - name: ADDR
               value: 0.0.0.0:8443

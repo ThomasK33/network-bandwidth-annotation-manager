@@ -16,13 +16,9 @@ One can find a mutation mode and feature overview in the [project documentation'
 
 ## Build
 
-### Binary
+### Pre-built OCI images
 
-One can build a release binary using the following:
-
-```bash
-cargo build --release
-```
+One can find pre-built OCI images in the project's package section, with the controller available [here](https://github.com/ThomasK33/network-bandwidth-annotation-manager/pkgs/container/nbam).
 
 ### OCI
 
@@ -32,9 +28,13 @@ One can create the OCI image using the following:
 docker build -t nbam:latest "."
 ```
 
-### Pre-built OCI images
+### Binary
 
-TODO: Add Github Action to build images and push to ghcr.io
+One can build a release binary using the following:
+
+```bash
+cargo build --release
+```
 
 ## Usage
 

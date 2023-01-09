@@ -2,6 +2,8 @@
 	"cSpell.words": [
 		"admissionregistration",
 		"apiserver",
+		"aquasecurity",
+		"codeql",
 		"Mbit",
 		"mkdocs",
 		"nbam",
@@ -9,6 +11,7 @@
 		"PKCS",
 		"powi",
 		"rustls",
+		"sarif",
 		"Trivy"
 	],
 	"markdownlint.config": {

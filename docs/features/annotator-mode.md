@@ -4,7 +4,7 @@ By enabling bandwidth annotations on either a namespace level, by adding a `nbam
 
 === "Example Namespace"
 
-    ``` yaml linenums="1" hl_lines="6"
+    ```yaml linenums="1" hl_lines="6"
     apiVersion: v1
     kind: Namespace
     metadata:

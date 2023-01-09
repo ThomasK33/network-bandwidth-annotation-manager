@@ -42,7 +42,7 @@ This mode is useful for scheduling with extended resources yet still being able 
 
 === "After mutation"
 
-    ```yaml linenums="1" hl_lines="7 8 9 10"
+    ```yaml linenums="1" hl_lines="7 8 9 10 22 23"
     apiVersion: v1
     kind: Pod
     metadata:

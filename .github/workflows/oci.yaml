@@ -1,8 +1,8 @@
 name: OCI
 
 on:
-  push:
-    branches: ["main"]
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -24,19 +24,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set Container Build Versions
-        run: echo VERSION=$(cat Cargo.toml | grep -o 'version = ".*"' -m 1 | sed 's/[^"]*"\([^"]*\).*/\1/') >> $GITHUB_ENV
-
       - name: Login to GHCR
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ThomasK33 --password-stdin
 
       - name: Build an image from Dockerfile
-        run: docker build -t ghcr.io/thomask33/nbam:${{ env.VERSION }} .
+        run: docker build -t ghcr.io/thomask33/nbam:${{ github.ref_name }} .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "ghcr.io/thomask33/nbam:${{ env.VERSION }}"
+          image-ref: "ghcr.io/thomask33/nbam:${{ github.ref_name }}"
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "CRITICAL,HIGH"
@@ -47,4 +44,4 @@ jobs:
           sarif_file: "trivy-results.sarif"
 
       - name: Push image
-        run: docker push ghcr.io/thomask33/nbam:${{ env.VERSION }}
+        run: docker push ghcr.io/thomask33/nbam:${{ github.ref_name }}

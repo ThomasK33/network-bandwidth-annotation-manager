@@ -25,10 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set Container Build Versions
-        run: |
-          go install github.com/tomwright/dasel/cmd/dasel@master
-
-          echo VERSION=$(cat Cargo.toml | dasel -r toml 'package.version') >> $GITHUB_ENV
+        run: echo VERSION=$(cat Cargo.toml | grep -o 'version = ".*"' -m 1 | sed 's/[^"]*"\([^"]*\).*/\1/') >> $GITHUB_ENV
 
       - name: Login to GHCR
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ThomasK33 --password-stdin

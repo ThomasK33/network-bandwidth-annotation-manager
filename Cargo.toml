@@ -11,7 +11,7 @@ license = "MIT"
 
 [dependencies]
 axum = "0.6.6"
-axum-server = { version = "0.4.4", features = ["tls-rustls"] }
+axum-server = { version = "0.4.6", features = ["tls-rustls"] }
 clap = { version = "4.1.4", features = ["cargo", "env", "derive"] }
 clap-verbosity-flag = "2.0.0"
 color-eyre = "0.6.2"

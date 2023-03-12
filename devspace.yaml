@@ -1,0 +1,52 @@
+version: v2beta1
+name: nbam
+
+pipelines:
+  dev:
+    run: |-
+      create_deployments --sequential cert-manager nbam # 1. Deploy cert-manager and nbam
+      start_dev nbam                                    # 2. Start dev mode "nbam" (see "dev" section)
+
+images:
+  nbam:
+    image: ghcr.io/thomask33/nbam
+    dockerfile: ./Dockerfile
+
+deployments:
+  cert-manager:
+    namespace: cert-manager
+    helm:
+      releaseName: cert-manager
+      chart:
+        name: cert-manager
+        repo: https://charts.jetstack.io
+        version: v1.11.0
+      values:
+        installCRDs: true
+
+  nbam:
+    kubectl:
+      manifests:
+        - deployments/**
+
+dev:
+  nbam:
+    imageSelector: ghcr.io/thomask33/nbam
+    devImage: ghcr.io/loft-sh/devspace-containers/rust:1.67-alpine
+    sync:
+      - path: ./
+        uploadExcludeFile: .dockerignore
+    terminal:
+      command: ./devspace_start.sh
+    ssh:
+      enabled: true
+      useInclude: true
+    proxyCommands:
+      - command: devspace
+      - command: kubectl
+      - command: helm
+      - command: k9s
+      - gitCredentials: true
+    patches:
+      - op: remove
+        path: spec.containers.*.securityContext

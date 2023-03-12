@@ -2,24 +2,24 @@ _default:
 	just --list
 
 # Run local development environment
-run: setup-k3d setup-tilt
+run: setup-k3d setup-devspace
 # Stop local development environment
-stop: teardown-tilt teardown-k3d
+stop: teardown-devspace teardown-k3d
 
 # Run mkdocs locally
 docs:
 	cargo about generate about.hbs > docs/license.md
 	mkdocs serve
 
-# --- tilt ---
+# --- devspace ---
 
-# Start tilt
-setup-tilt:
-	tilt up
+# Run devspace dev
+setup-devspace:
+	devspace dev
 
-# Shutdown tilt
-teardown-tilt:
-	tilt down
+# Shutdown devspace
+teardown-devspace:
+	devspace purge
 
 # --- k3d ---
 

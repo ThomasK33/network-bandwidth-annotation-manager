@@ -76,3 +76,7 @@ target/
 
 /target
 docs/license.md
+
+
+# Ignore DevSpace cache and log folder
+.devspace/

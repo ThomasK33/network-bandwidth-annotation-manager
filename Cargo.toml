@@ -13,7 +13,7 @@ license = "MIT"
 axum = "0.6.12"
 axum-server = { version = "0.4.7", features = ["tls-rustls"] }
 clap = { version = "4.2.1", features = ["cargo", "env", "derive"] }
-clap-verbosity-flag = "2.0.0"
+clap-verbosity-flag = "2.0.1"
 color-eyre = "0.6.2"
 futures = "0.3.27"
 json-patch = "0.3.0"

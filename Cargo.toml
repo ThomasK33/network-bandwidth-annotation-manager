@@ -16,7 +16,7 @@ clap = { version = "4.2.1", features = ["cargo", "env", "derive"] }
 clap-verbosity-flag = "2.0.0"
 color-eyre = "0.6.2"
 futures = "0.3.27"
-json-patch = "0.3.0"
+json-patch = "1.0.0"
 k8s-openapi = { version = "0.17.0", features = ["v1_24"] }
 kube = { version = "0.80.0", features = ["admission", "client", "runtime"] }
 log = "0.4.17"
